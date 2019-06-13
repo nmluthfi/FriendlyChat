@@ -73,6 +73,7 @@ public class MainActivity extends AppCompatActivity {
     // Firebase Auth
     private FirebaseAuth mFirebaseAuth;
 
+    // reference to auth
     // Auth listener
     private FirebaseAuth.AuthStateListener mAuthStateListener;
 
@@ -151,38 +152,7 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        // listen messages node behaviour
-        mChildEventLIstener = new ChildEventListener() {
-            @Override
-            public void onChildAdded(DataSnapshot dataSnapshot, String s) {
-                // get data of the new messages, then deserialite from the db into FriendMessgage
-                // object and save it into FriendlyMessage Obj
-                FriendlyMessage friendlyMessage = dataSnapshot.getValue(FriendlyMessage.class);
-                // add the FriendlyMessage obj to the adapter and it will display into ListView
-                mMessageAdapter.add(friendlyMessage);
-            }
-
-            @Override
-            public void onChildChanged(DataSnapshot dataSnapshot, String s) {
-            }
-
-            @Override
-            public void onChildRemoved(DataSnapshot dataSnapshot) {
-            }
-
-            @Override
-            public void onChildMoved(DataSnapshot dataSnapshot, String s) {
-            }
-
-            @Override
-            public void onCancelled(DatabaseError databaseError) {
-            }
-        };
-
-        // Firebase components listener
-        // reference to the messages node
-        mMessagesDatabaseReference.addChildEventListener(mChildEventLIstener);
-        // reference to auth
+        // Auth listener
         mAuthStateListener = new FirebaseAuth.AuthStateListener() {
             @Override
             public void onAuthStateChanged(@NonNull FirebaseAuth firebaseAuth) {
@@ -190,10 +160,12 @@ public class MainActivity extends AppCompatActivity {
                 FirebaseUser user = firebaseAuth.getCurrentUser();
                 if (user != null) {
                     // if user login
+                    onSignedInInitialize(user.getDisplayName());
                     Toast.makeText(MainActivity.this,
                             "You're welcome " + user.getDisplayName(),
                             Toast.LENGTH_SHORT).show();
                 } else {
+                    onSignedOutCleanup();
                     // if user not logg in display sign in UI
                     startActivityForResult(
                             AuthUI.getInstance()
@@ -218,7 +190,11 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onPause() {
         super.onPause();
-        mFirebaseAuth.removeAuthStateListener(mAuthStateListener);
+        if (mAuthStateListener != null) {
+            mFirebaseAuth.removeAuthStateListener(mAuthStateListener);
+        }
+        detachDbReadListener();
+        mMessageAdapter.clear();
     }
 
     @Override
@@ -231,5 +207,59 @@ public class MainActivity extends AppCompatActivity {
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         return super.onOptionsItemSelected(item);
+    }
+
+    private void onSignedInInitialize(String username) {
+        mUsername = username;
+        attachDbReadListener();
+    }
+
+    private void onSignedOutCleanup() {
+        mUsername = ANONYMOUS;
+        mMessageAdapter.clear();
+        detachDbReadListener();
+    }
+
+    private void attachDbReadListener() {
+        if (mChildEventLIstener == null) {
+            // listen messages node behaviour
+            mChildEventLIstener = new ChildEventListener() {
+                @Override
+                public void onChildAdded(DataSnapshot dataSnapshot, String s) {
+                    // get data of the new messages, then deserialite from the db into FriendMessgage
+                    // object and save it into FriendlyMessage Obj
+                    FriendlyMessage friendlyMessage = dataSnapshot.getValue(FriendlyMessage.class);
+                    // add the FriendlyMessage obj to the adapter and it will display into ListView
+                    mMessageAdapter.add(friendlyMessage);
+                }
+
+                @Override
+                public void onChildChanged(DataSnapshot dataSnapshot, String s) {
+                }
+
+                @Override
+                public void onChildRemoved(DataSnapshot dataSnapshot) {
+                }
+
+                @Override
+                public void onChildMoved(DataSnapshot dataSnapshot, String s) {
+                }
+
+                @Override
+                public void onCancelled(DatabaseError databaseError) {
+                }
+            };
+            // Firebase components listener
+            // reference to the messages node
+            mMessagesDatabaseReference.addChildEventListener(mChildEventLIstener);
+        }
+    }
+
+    private void detachDbReadListener() {
+        if (mChildEventLIstener != null) {
+            mMessagesDatabaseReference.removeEventListener(mChildEventLIstener);
+            mChildEventLIstener = null;
+        }
+
     }
 }
