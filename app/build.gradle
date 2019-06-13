@@ -44,6 +44,10 @@ dependencies {
     // Firebase Dependency
     // Realtime Db
     compile 'com.google.firebase:firebase-database:9.6.1'
+    // UI Auth
+    compile 'com.firebaseui:firebase-ui-auth:0.6.0'
+    // Firebase Auth
+    compile 'com.google.firebase:firebase-auth:9.6.1'
 }
 // Firebase plugin
 apply plugin: 'com.google.gms.google-services'
