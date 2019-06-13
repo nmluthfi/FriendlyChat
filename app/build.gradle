@@ -48,6 +48,8 @@ dependencies {
     compile 'com.firebaseui:firebase-ui-auth:0.6.0'
     // Firebase Auth
     compile 'com.google.firebase:firebase-auth:9.6.1'
+    // Firebase Storage
+    compile 'com.google.firebase:firebase-storage:9.6.1'
 }
 // Firebase plugin
 apply plugin: 'com.google.gms.google-services'

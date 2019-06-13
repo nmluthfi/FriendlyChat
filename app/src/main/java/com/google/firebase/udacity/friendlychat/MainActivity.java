@@ -16,6 +16,7 @@
 package com.google.firebase.udacity.friendlychat;
 
 import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.v7.app.AppCompatActivity;
@@ -34,6 +35,8 @@ import android.widget.ProgressBar;
 import android.widget.Toast;
 
 import com.firebase.ui.auth.AuthUI;
+import com.google.android.gms.tasks.OnFailureListener;
+import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.database.ChildEventListener;
@@ -41,6 +44,9 @@ import com.google.firebase.database.DataSnapshot;
 import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
+import com.google.firebase.storage.FirebaseStorage;
+import com.google.firebase.storage.StorageReference;
+import com.google.firebase.storage.UploadTask;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -66,21 +72,20 @@ public class MainActivity extends AppCompatActivity {
 
     private String mUsername;
 
+    // Firebase instance
     // Entry point to acces Db
     private FirebaseDatabase mFirebaseDb;
-
     // Reference message from the db
     private DatabaseReference mMessagesDatabaseReference;
-
     // Listener to Messages node
     private ChildEventListener mChildEventLIstener;
-
     // Firebase Auth
     private FirebaseAuth mFirebaseAuth;
-
     // reference to auth
     // Auth listener
     private FirebaseAuth.AuthStateListener mAuthStateListener;
+    private FirebaseStorage mFirebaseStorage;
+    private StorageReference mChatPhotosStorageReference;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -92,10 +97,15 @@ public class MainActivity extends AppCompatActivity {
         // Initialize Firebase components
         // declare acces point to the db
         mFirebaseDb = FirebaseDatabase.getInstance();
+        // declare auth
         mFirebaseAuth = FirebaseAuth.getInstance();
+        // declare storage
+        mFirebaseStorage = FirebaseStorage.getInstance();
 
         // get refrence to the root node then get the messgaes portion from database
         mMessagesDatabaseReference = mFirebaseDb.getReference().child("messages");
+        // get refrence to the root node then get the chat_photos from db
+        mChatPhotosStorageReference = mFirebaseStorage.getReference().child("chat_photos");
 
         // Initialize references to views
         mProgressBar = (ProgressBar) findViewById(R.id.progressBar);
@@ -190,16 +200,20 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        // register auth listener
         mFirebaseAuth.addAuthStateListener(mAuthStateListener);
     }
 
     @Override
     protected void onPause() {
         super.onPause();
+        // Jika auth tidak null maka kita remove
         if (mAuthStateListener != null) {
             mFirebaseAuth.removeAuthStateListener(mAuthStateListener);
         }
+        // hapus listener db
         detachDbReadListener();
+        // hapus data di RecyclerView
         mMessageAdapter.clear();
     }
 
@@ -208,10 +222,43 @@ public class MainActivity extends AppCompatActivity {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == RC_SIGN_IN) {
             if (resultCode == RESULT_OK) {
+                // Jika berhasil login, akan menampilkan toast message berhasil login dan
+                // munculkan activity messages
                 Toast.makeText(this, "Welcome", Toast.LENGTH_SHORT).show();
             } else if (resultCode == RESULT_CANCELED) {
+                // Jika gagal tidak usah di tampilkan
                 finish();
             }
+        } else if (requestCode == RC_PHOTO_PICKER && resultCode == RESULT_OK) {
+            // cek seteleh memilih foto dan ambil datanya
+            Uri selectedImg = data.getData();
+
+            // Refrence location for photos by last segment of path
+            StorageReference photoRef =
+                    mChatPhotosStorageReference.child(selectedImg.getLastPathSegment());
+
+            // Upload foto to the storage then listen to the result where it succes or not
+            UploadTask uploadTask = photoRef.putFile(selectedImg);
+            uploadTask.addOnSuccessListener(new OnSuccessListener<UploadTask.TaskSnapshot>() {
+                @Override
+                public void onSuccess(UploadTask.TaskSnapshot taskSnapshot) {
+                    // if success
+                    // get the url of the photo from storage
+                    Uri downloadUrl = taskSnapshot.getDownloadUrl();
+
+                    // Make FriendlyMessage obj with text is null and available photo
+                    FriendlyMessage friendlyMessage =
+                            new FriendlyMessage(null, mUsername, downloadUrl.toString());
+
+                    // push the messgae into db
+                    mMessagesDatabaseReference.push().setValue(friendlyMessage);
+                }
+            }).addOnFailureListener(new OnFailureListener() {
+                @Override
+                public void onFailure(@NonNull Exception e) {
+                    // if fail
+                }
+            });
         }
     }
 
@@ -233,17 +280,20 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    // Method berhasil sign in
     private void onSignedInInitialize(String username) {
         mUsername = username;
         attachDbReadListener();
     }
 
+    // Method jika gagal sign up
     private void onSignedOutCleanup() {
         mUsername = ANONYMOUS;
         mMessageAdapter.clear();
         detachDbReadListener();
     }
 
+    // Method untuk menjalankan listener db
     private void attachDbReadListener() {
         if (mChildEventLIstener == null) {
             // listen messages node behaviour
@@ -279,11 +329,12 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    // Method untuk memberhentikan listener db
     private void detachDbReadListener() {
+        // jika listener tidak null maka kita remove listener dari db dan ubah menjadi null
         if (mChildEventLIstener != null) {
             mMessagesDatabaseReference.removeEventListener(mChildEventLIstener);
             mChildEventLIstener = null;
         }
-
     }
 }
