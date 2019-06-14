@@ -23,6 +23,7 @@ import android.support.v7.app.AppCompatActivity;
 import android.text.Editable;
 import android.text.InputFilter;
 import android.text.TextWatcher;
+import android.util.Log;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
@@ -44,12 +45,16 @@ import com.google.firebase.database.DataSnapshot;
 import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
+import com.google.firebase.remoteconfig.FirebaseRemoteConfig;
+import com.google.firebase.remoteconfig.FirebaseRemoteConfigSettings;
 import com.google.firebase.storage.FirebaseStorage;
 import com.google.firebase.storage.StorageReference;
 import com.google.firebase.storage.UploadTask;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -62,6 +67,8 @@ public class MainActivity extends AppCompatActivity {
     // constant pick a img
     private static final int RC_PHOTO_PICKER = 2;
 
+    // constant for testing remote config. this is for testing better limit message fro our app
+    private static final String FRIENDLY_MSG_LENGTH_KEY = "friendly_msg_length";
 
     private ListView mMessageListView;
     private MessageAdapter mMessageAdapter;
@@ -86,6 +93,7 @@ public class MainActivity extends AppCompatActivity {
     private FirebaseAuth.AuthStateListener mAuthStateListener;
     private FirebaseStorage mFirebaseStorage;
     private StorageReference mChatPhotosStorageReference;
+    private FirebaseRemoteConfig mFirebaseRemoteConfig;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -101,6 +109,8 @@ public class MainActivity extends AppCompatActivity {
         mFirebaseAuth = FirebaseAuth.getInstance();
         // declare storage
         mFirebaseStorage = FirebaseStorage.getInstance();
+        // declare remote config
+        mFirebaseRemoteConfig = FirebaseRemoteConfig.getInstance();
 
         // get refrence to the root node then get the messgaes portion from database
         mMessagesDatabaseReference = mFirebaseDb.getReference().child("messages");
@@ -130,7 +140,7 @@ public class MainActivity extends AppCompatActivity {
                 Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
                 intent.setType("image/jpg");
                 intent.putExtra(Intent.EXTRA_LOCAL_ONLY, true);
-                startActivityForResult(Intent.createChooser(intent,"Complete action using"), RC_PHOTO_PICKER);
+                startActivityForResult(Intent.createChooser(intent, "Complete action using"), RC_PHOTO_PICKER);
             }
         });
 
@@ -195,6 +205,21 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
         };
+        // get and set dev mode to the config
+        FirebaseRemoteConfigSettings configSettings = new FirebaseRemoteConfigSettings.Builder()
+                .setDeveloperModeEnabled(BuildConfig.DEBUG)
+                .build();
+        mFirebaseRemoteConfig.setConfigSettings(configSettings);
+
+        // Define params - value in remote config save it in map
+        Map<String, Object> defaultConfigMap = new HashMap<>();
+        defaultConfigMap.put(FRIENDLY_MSG_LENGTH_KEY, DEFAULT_MSG_LENGTH_LIMIT);
+
+        // set up remote config
+        mFirebaseRemoteConfig.setDefaults(defaultConfigMap);
+
+        // fetch values from server
+        fetchConfig();
     }
 
     @Override
@@ -281,19 +306,20 @@ public class MainActivity extends AppCompatActivity {
     }
 
     // Method berhasil sign in
+
     private void onSignedInInitialize(String username) {
         mUsername = username;
         attachDbReadListener();
     }
-
     // Method jika gagal sign up
+
     private void onSignedOutCleanup() {
         mUsername = ANONYMOUS;
         mMessageAdapter.clear();
         detachDbReadListener();
     }
-
     // Method untuk menjalankan listener db
+
     private void attachDbReadListener() {
         if (mChildEventLIstener == null) {
             // listen messages node behaviour
@@ -337,4 +363,43 @@ public class MainActivity extends AppCompatActivity {
             mChildEventLIstener = null;
         }
     }
+
+    // Fetch config
+    private void fetchConfig() {
+        // cache expiration time
+        long cacheExpiration = 3600; // an hour
+
+        // set cache zero if dev mode is enable
+        if (mFirebaseRemoteConfig.getInfo().getConfigSettings().isDeveloperModeEnabled()) {
+            cacheExpiration = 0;
+        }
+        // fetch value to the config
+        mFirebaseRemoteConfig.fetch(cacheExpiration).addOnSuccessListener(new OnSuccessListener<Void>() {
+            @Override
+            public void onSuccess(Void aVoid) {
+                // if success get the value from server
+                // activiating parameters
+                mFirebaseRemoteConfig.activateFetched();
+
+                applyRetrieveLengthLimit();
+            }
+        }).addOnFailureListener(new OnFailureListener() {
+            @Override
+            public void onFailure(@NonNull Exception e) {
+                // if failed get the value from server
+                Log.w(TAG, "Error fetching config", e);
+                applyRetrieveLengthLimit();
+            }
+        });
+    }
+
+    // Method for update the edit text length
+    private void applyRetrieveLengthLimit() {
+        // get the value from the key in config
+        Long friendly_msg_length = mFirebaseRemoteConfig.getLong(FRIENDLY_MSG_LENGTH_KEY);
+        // set the new limit to 140 as like the value from remote config
+        mMessageEditText.setFilters(new InputFilter[]
+                {new InputFilter.LengthFilter(friendly_msg_length.intValue())});
+    }
+
 }
