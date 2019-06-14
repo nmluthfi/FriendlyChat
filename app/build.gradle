@@ -44,12 +44,15 @@ dependencies {
     // Firebase Dependency
     // Realtime Db
     compile 'com.google.firebase:firebase-database:9.6.1'
-    // UI Auth
-    compile 'com.firebaseui:firebase-ui-auth:0.6.0'
     // Firebase Auth
     compile 'com.google.firebase:firebase-auth:9.6.1'
     // Firebase Storage
     compile 'com.google.firebase:firebase-storage:9.6.1'
+    // notification messagging
+    compile 'com.google.firebase:firebase-messaging:9.6.1'
+
+    // UI Auth
+    compile 'com.firebaseui:firebase-ui-auth:0.6.0'
 }
 // Firebase plugin
 apply plugin: 'com.google.gms.google-services'

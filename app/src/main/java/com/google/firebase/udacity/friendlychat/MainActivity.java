@@ -104,7 +104,7 @@ public class MainActivity extends AppCompatActivity {
 
         // get refrence to the root node then get the messgaes portion from database
         mMessagesDatabaseReference = mFirebaseDb.getReference().child("messages");
-        // get refrence to the root node then get the chat_photos from db
+        // get refrence to the root node then get the chat_photos from storage
         mChatPhotosStorageReference = mFirebaseStorage.getReference().child("chat_photos");
 
         // Initialize references to views
